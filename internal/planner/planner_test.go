@@ -4,9 +4,9 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/labring-sigs/route-controller/internal/planner"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zijiren233/route-controller/internal/planner"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

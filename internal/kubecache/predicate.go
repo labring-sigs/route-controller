@@ -1,7 +1,7 @@
 package kubecache
 
 import (
-	ciliumv2 "github.com/zijiren233/route-controller/internal/apis/cilium/v2"
+	ciliumv2 "github.com/labring-sigs/route-controller/internal/apis/cilium/v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"sigs.k8s.io/controller-runtime/pkg/event"

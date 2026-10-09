@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/labring-sigs/route-controller/internal/probe"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zijiren233/route-controller/internal/probe"
 )
 
 func TestHTTPProbe(t *testing.T) {

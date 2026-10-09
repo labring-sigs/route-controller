@@ -7,7 +7,7 @@ import (
 	"net/netip"
 	"slices"
 
-	"github.com/zijiren233/route-controller/internal/route"
+	"github.com/labring-sigs/route-controller/internal/route"
 	corev1 "k8s.io/api/core/v1"
 )
 

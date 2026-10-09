@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/labring-sigs/route-controller/internal/config"
 	"github.com/spf13/cobra"
-	"github.com/zijiren233/route-controller/internal/config"
 	"sigs.k8s.io/yaml"
 )
 

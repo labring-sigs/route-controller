@@ -52,7 +52,7 @@ Kubeconfig only:
 
 RECOMMENDED DEPLOYMENT: ONE CONTROL PLANE AT A TIME
   Run from the repository root; adjacent deploy templates must be present.
-  IMAGE='ghcr.io/zijiren233/route-controller@sha256:<64-hex-digest>'
+  IMAGE='ghcr.io/labring-sigs/route-controller@sha256:<64-hex-digest>'
   sudo deploy/scripts/standalone.sh deploy --check \
     --kubeconfig /secure/controller.conf --image "$IMAGE"
   sudo deploy/scripts/standalone.sh deploy \

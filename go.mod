@@ -1,4 +1,4 @@
-module github.com/zijiren233/route-controller
+module github.com/labring-sigs/route-controller
 
 go 1.27
 

@@ -3,8 +3,8 @@ package controller
 import (
 	"context"
 
-	ciliumv2 "github.com/zijiren233/route-controller/internal/apis/cilium/v2"
-	"github.com/zijiren233/route-controller/internal/kubecache"
+	ciliumv2 "github.com/labring-sigs/route-controller/internal/apis/cilium/v2"
+	"github.com/labring-sigs/route-controller/internal/kubecache"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zijiren233/route-controller/internal/app"
-	"github.com/zijiren233/route-controller/internal/cli"
+	"github.com/labring-sigs/route-controller/internal/app"
+	"github.com/labring-sigs/route-controller/internal/cli"
 )
 
 func main() {

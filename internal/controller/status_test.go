@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/labring-sigs/route-controller/internal/controller"
 	"github.com/stretchr/testify/assert"
-	"github.com/zijiren233/route-controller/internal/controller"
 )
 
 func TestStatusEndpoint(t *testing.T) {

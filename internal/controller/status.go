@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/zijiren233/route-controller/internal/planner"
-	"github.com/zijiren233/route-controller/internal/route"
+	"github.com/labring-sigs/route-controller/internal/planner"
+	"github.com/labring-sigs/route-controller/internal/route"
 )
 
 var errNotReady = errors.New("route controller is not ready")

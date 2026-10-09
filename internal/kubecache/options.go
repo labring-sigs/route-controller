@@ -2,7 +2,7 @@
 package kubecache
 
 import (
-	ciliumv2 "github.com/zijiren233/route-controller/internal/apis/cilium/v2"
+	ciliumv2 "github.com/labring-sigs/route-controller/internal/apis/cilium/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"

@@ -9,10 +9,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/labring-sigs/route-controller/internal/config"
+	"github.com/labring-sigs/route-controller/internal/logging"
+	versioninfo "github.com/labring-sigs/route-controller/internal/version"
 	"github.com/spf13/cobra"
-	"github.com/zijiren233/route-controller/internal/config"
-	"github.com/zijiren233/route-controller/internal/logging"
-	versioninfo "github.com/zijiren233/route-controller/internal/version"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )

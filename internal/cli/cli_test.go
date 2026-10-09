@@ -5,10 +5,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/labring-sigs/route-controller/internal/cli"
+	"github.com/labring-sigs/route-controller/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zijiren233/route-controller/internal/cli"
-	"github.com/zijiren233/route-controller/internal/config"
 )
 
 func TestValidateCommand(t *testing.T) {

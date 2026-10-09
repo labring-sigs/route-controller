@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	versioninfo "github.com/labring-sigs/route-controller/internal/version"
 	"github.com/spf13/cobra"
-	versioninfo "github.com/zijiren233/route-controller/internal/version"
 	"sigs.k8s.io/yaml"
 )
 

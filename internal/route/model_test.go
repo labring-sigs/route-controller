@@ -4,9 +4,9 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/labring-sigs/route-controller/internal/route"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zijiren233/route-controller/internal/route"
 )
 
 func TestNewDesiredNormalizesGateways(t *testing.T) {

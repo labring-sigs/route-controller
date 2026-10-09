@@ -19,9 +19,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath \
       -ldflags="-s -w \
-        -X github.com/zijiren233/route-controller/internal/version.Version=${VERSION} \
-        -X github.com/zijiren233/route-controller/internal/version.GitCommit=${GIT_COMMIT} \
-        -X github.com/zijiren233/route-controller/internal/version.BuildDate=${BUILD_DATE}" \
+        -X github.com/labring-sigs/route-controller/internal/version.Version=${VERSION} \
+        -X github.com/labring-sigs/route-controller/internal/version.GitCommit=${GIT_COMMIT} \
+        -X github.com/labring-sigs/route-controller/internal/version.BuildDate=${BUILD_DATE}" \
       -o /out/route-controller ./cmd/route-controller
 
 FROM gcr.io/distroless/static-debian12:nonroot

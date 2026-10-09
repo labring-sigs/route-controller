@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/zijiren233/route-controller/internal/config"
+	"github.com/labring-sigs/route-controller/internal/config"
 	"go.uber.org/zap/zapcore"
 	controllerZap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
