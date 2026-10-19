@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 	"time"
+	"unicode"
 )
 
 const (
@@ -93,7 +95,7 @@ type LoggingConfig struct {
 
 type Validated struct {
 	Config
-	PodCIDR     netip.Prefix
+	PodCIDRs    []netip.Prefix
 	ServiceCIDR netip.Prefix
 	RouterCIDR  netip.Prefix
 }
@@ -128,7 +130,7 @@ func Defaults() Config {
 func (cfg Config) Validate() (Validated, error) {
 	validationErrors := cfg.validateScalars()
 
-	podCIDR, err := parseIPv4Prefix("routes.pod-cidr", cfg.Routes.PodCIDR)
+	podCIDRs, err := parseIPv4PrefixList("routes.pod-cidr", cfg.Routes.PodCIDR)
 	if err != nil {
 		validationErrors = append(validationErrors, err)
 	}
@@ -145,7 +147,7 @@ func (cfg Config) Validate() (Validated, error) {
 
 	validationErrors = append(
 		validationErrors,
-		validatePrefixRelationships(podCIDR, serviceCIDR, routerCIDR)...,
+		validatePrefixRelationships(podCIDRs, serviceCIDR, routerCIDR)...,
 	)
 
 	if err := errors.Join(validationErrors...); err != nil {
@@ -153,16 +155,25 @@ func (cfg Config) Validate() (Validated, error) {
 	}
 
 	// Keep the serializable configuration aligned with the parsed prefixes.
-	cfg.Routes.PodCIDR = podCIDR.String()
+	cfg.Routes.PodCIDR = joinPrefixes(podCIDRs)
 	cfg.Routes.ServiceCIDR = serviceCIDR.String()
 	cfg.Routes.RouterCIDR = routerCIDR.String()
 
 	return Validated{
 		Config:      cfg,
-		PodCIDR:     podCIDR,
+		PodCIDRs:    podCIDRs,
 		ServiceCIDR: serviceCIDR,
 		RouterCIDR:  routerCIDR,
 	}, nil
+}
+
+func joinPrefixes(prefixes []netip.Prefix) string {
+	values := make([]string, 0, len(prefixes))
+	for _, prefix := range prefixes {
+		values = append(values, prefix.String())
+	}
+
+	return strings.Join(values, ",")
 }
 
 func (cfg Config) validateScalars() []error {
@@ -260,20 +271,25 @@ func (cfg Config) validateScalars() []error {
 	return validationErrors
 }
 
-func validatePrefixRelationships(podCIDR, serviceCIDR, routerCIDR netip.Prefix) []error {
+func validatePrefixRelationships(
+	podCIDRs []netip.Prefix,
+	serviceCIDR, routerCIDR netip.Prefix,
+) []error {
 	validationErrors := make([]error, 0, 3)
-	if podCIDR.IsValid() && serviceCIDR.IsValid() && prefixesOverlap(podCIDR, serviceCIDR) {
-		validationErrors = append(
-			validationErrors,
-			errors.New("routes.pod-cidr and routes.service-cidr overlap"),
-		)
-	}
+	for _, podCIDR := range podCIDRs {
+		if podCIDR.IsValid() && serviceCIDR.IsValid() && prefixesOverlap(podCIDR, serviceCIDR) {
+			validationErrors = append(
+				validationErrors,
+				fmt.Errorf("pod CIDR %s overlaps routes.service-cidr %s", podCIDR, serviceCIDR),
+			)
+		}
 
-	if podCIDR.IsValid() && routerCIDR.IsValid() && prefixesOverlap(podCIDR, routerCIDR) {
-		validationErrors = append(
-			validationErrors,
-			errors.New("routes.pod-cidr and routes.router-cidr overlap"),
-		)
+		if podCIDR.IsValid() && routerCIDR.IsValid() && prefixesOverlap(podCIDR, routerCIDR) {
+			validationErrors = append(
+				validationErrors,
+				fmt.Errorf("pod CIDR %s overlaps routes.router-cidr %s", podCIDR, routerCIDR),
+			)
+		}
 	}
 
 	if serviceCIDR.IsValid() && routerCIDR.IsValid() && prefixesOverlap(serviceCIDR, routerCIDR) {
@@ -293,6 +309,29 @@ func parseIPv4Prefix(name, value string) (netip.Prefix, error) {
 	}
 
 	return prefix.Masked(), nil
+}
+
+// parseIPv4PrefixList parses a comma- or whitespace-separated list of IPv4
+// CIDRs. Cilium writes multiple cluster-pool CIDRs into one ConfigMap value
+// separated by spaces, while the CLI accepts comma-separated lists.
+func parseIPv4PrefixList(name, value string) ([]netip.Prefix, error) {
+	prefixes := make([]netip.Prefix, 0, 1)
+	for _, part := range strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || unicode.IsSpace(r)
+	}) {
+		prefix, err := parseIPv4Prefix(name, part)
+		if err != nil {
+			return nil, err
+		}
+
+		prefixes = append(prefixes, prefix)
+	}
+
+	if len(prefixes) == 0 {
+		return nil, fmt.Errorf("%s must be a valid IPv4 CIDR list", name)
+	}
+
+	return prefixes, nil
 }
 
 func prefixesOverlap(first, second netip.Prefix) bool {

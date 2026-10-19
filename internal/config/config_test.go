@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"net/netip"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +19,7 @@ func TestValidate(t *testing.T) {
 	cfg := validConfig()
 	validated, err := cfg.Validate()
 	require.NoError(t, err)
-	assert.Equal(t, "10.0.0.0/10", validated.PodCIDR.String())
+	assert.Equal(t, []netip.Prefix{netip.MustParsePrefix("10.0.0.0/10")}, validated.PodCIDRs)
 	assert.Equal(t, "10.192.0.0/12", validated.ServiceCIDR.String())
 	assert.Equal(t, "192.0.2.0/24", validated.RouterCIDR.String())
 }
@@ -39,6 +40,56 @@ func TestValidateNormalizesCIDRs(t *testing.T) {
 	assert.Equal(t, "192.0.2.0/24", validated.Routes.RouterCIDR)
 }
 
+func TestValidateAcceptsMultiplePodCIDRs(t *testing.T) {
+	t.Parallel()
+
+	cfg := validConfig()
+	cfg.Routes.PodCIDR = "10.107.0.0/16 10.108.0.0/16, 10.109.0.0/16"
+
+	validated, err := cfg.Validate()
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		[]netip.Prefix{
+			netip.MustParsePrefix("10.107.0.0/16"),
+			netip.MustParsePrefix("10.108.0.0/16"),
+			netip.MustParsePrefix("10.109.0.0/16"),
+		},
+		validated.PodCIDRs,
+	)
+	assert.Equal(
+		t,
+		"10.107.0.0/16,10.108.0.0/16,10.109.0.0/16",
+		validated.Routes.PodCIDR,
+	)
+}
+
+func TestValidateReportsPerPoolOverlap(t *testing.T) {
+	t.Parallel()
+
+	cfg := validConfig()
+	cfg.Routes.PodCIDR = "10.0.0.0/10,10.193.0.0/16"
+
+	_, err := cfg.Validate()
+	require.Error(t, err)
+	assert.ErrorContains(
+		t,
+		err,
+		"pod CIDR 10.193.0.0/16 overlaps routes.service-cidr 10.192.0.0/12",
+	)
+}
+
+func TestValidateRejectsInvalidPoolEntry(t *testing.T) {
+	t.Parallel()
+
+	cfg := validConfig()
+	cfg.Routes.PodCIDR = "10.0.0.0/10 2001:db8::/32"
+
+	_, err := cfg.Validate()
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "routes.pod-cidr must be a valid IPv4 CIDR")
+}
+
 func TestValidateReportsAllImportantErrors(t *testing.T) {
 	t.Parallel()
 
@@ -55,8 +106,8 @@ func TestValidateReportsAllImportantErrors(t *testing.T) {
 	assert.ErrorContains(t, err, "routes.protocol")
 	assert.ErrorContains(t, err, "probe.timeout")
 	assert.ErrorContains(t, err, "logging.level")
-	assert.ErrorContains(t, err, "routes.pod-cidr and routes.service-cidr overlap")
-	assert.ErrorContains(t, err, "routes.pod-cidr and routes.router-cidr overlap")
+	assert.ErrorContains(t, err, "pod CIDR 10.0.0.0/8 overlaps routes.service-cidr 10.192.0.0/12")
+	assert.ErrorContains(t, err, "pod CIDR 10.0.0.0/8 overlaps routes.router-cidr 10.1.0.0/16")
 }
 
 func TestLoaderPrecedence(t *testing.T) {

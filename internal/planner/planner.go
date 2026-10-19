@@ -6,19 +6,30 @@ import (
 	"fmt"
 	"net/netip"
 	"slices"
+	"strings"
 
 	"github.com/labring-sigs/route-controller/internal/route"
 	corev1 "k8s.io/api/core/v1"
 )
 
 type Planner struct {
-	podCIDR     netip.Prefix
+	podCIDRs    []netip.Prefix
 	serviceCIDR netip.Prefix
 	routerCIDR  netip.Prefix
 }
 
-func New(podCIDR, serviceCIDR, routerCIDR netip.Prefix) *Planner {
-	return &Planner{podCIDR: podCIDR, serviceCIDR: serviceCIDR, routerCIDR: routerCIDR}
+func New(podCIDRs []netip.Prefix, serviceCIDR, routerCIDR netip.Prefix) *Planner {
+	return &Planner{podCIDRs: podCIDRs, serviceCIDR: serviceCIDR, routerCIDR: routerCIDR}
+}
+
+// podCIDRList renders the allowed Pod CIDRs for validation messages.
+func (planner *Planner) podCIDRList() string {
+	values := make([]string, 0, len(planner.podCIDRs))
+	for _, prefix := range planner.podCIDRs {
+		values = append(values, prefix.String())
+	}
+
+	return strings.Join(values, ",")
 }
 
 func (planner *Planner) Workers(
@@ -182,9 +193,12 @@ func (planner *Planner) validateWorker(
 		}
 
 		podCIDR = podCIDR.Masked()
-		if !route.PrefixWithin(podCIDR, planner.podCIDR) {
-			return WorkerStatePodCIDRInvalid,
-				fmt.Sprintf("PodCIDR %s is outside allowed CIDR %s", podCIDR, planner.podCIDR)
+		if !route.PrefixWithinAny(podCIDR, planner.podCIDRs) {
+			return WorkerStatePodCIDRInvalid, fmt.Sprintf(
+				"PodCIDR %s is outside allowed CIDRs %s",
+				podCIDR,
+				planner.podCIDRList(),
+			)
 		}
 
 		if prefixesOverlap(podCIDR, planner.serviceCIDR) {

@@ -40,7 +40,7 @@ func TestNetlinkLifecycle(t *testing.T) {
 		integrationLinkName,
 		integrationTable,
 		integrationProtocol,
-		netip.MustParsePrefix("10.240.0.0/16"),
+		[]netip.Prefix{netip.MustParsePrefix("10.240.0.0/16")},
 		netip.MustParsePrefix("10.241.0.0/16"),
 	)
 	require.NoError(t, err)

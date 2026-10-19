@@ -37,7 +37,7 @@ func TestResolveDiscoversRouteConfiguration(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "ens18", resolved.Routes.Interface)
-	assert.Equal(t, "10.0.0.0/10", resolved.PodCIDR.String())
+	assert.Equal(t, "10.0.0.0/10", resolved.Routes.PodCIDR)
 	assert.Equal(t, "10.192.0.0/12", resolved.ServiceCIDR.String())
 	assert.Equal(t, "192.0.2.0/24", resolved.RouterCIDR.String())
 }
@@ -79,7 +79,7 @@ func TestResolveFallsBackToKubeadmPodCIDR(t *testing.T) {
 	resolved, err := resolver.Resolve(context.Background(), config.Defaults())
 
 	require.NoError(t, err)
-	assert.Equal(t, "10.0.0.0/10", resolved.PodCIDR.String())
+	assert.Equal(t, "10.0.0.0/10", resolved.Routes.PodCIDR)
 }
 
 func TestResolveRejectsWorkersOnDifferentInterfaces(t *testing.T) {
@@ -124,6 +124,16 @@ type fakeNetwork struct {
 	prefixCalls    int
 }
 
+func workerNetwork() *fakeNetwork {
+	return &fakeNetwork{
+		interfaces: map[netip.Addr]string{
+			netip.MustParseAddr("192.0.2.10"): "ens18",
+			netip.MustParseAddr("192.0.2.11"): "ens18",
+		},
+		prefixes: []netip.Prefix{netip.MustParsePrefix("192.0.2.0/24")},
+	}
+}
+
 func (network *fakeNetwork) InterfaceFor(address netip.Addr) (string, error) {
 	network.interfaceCalls++
 	return network.interfaces[address], nil
@@ -141,6 +151,46 @@ func fakeReader(t *testing.T, objects ...client.Object) client.Reader {
 	require.NoError(t, corev1.AddToScheme(scheme))
 
 	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+}
+
+func TestResolveParsesMultipleCiliumPodCIDRPools(t *testing.T) {
+	t.Parallel()
+
+	objects := discoveryObjects()
+	ciliumConfig, ok := objects[0].(*corev1.ConfigMap)
+	require.True(t, ok)
+
+	ciliumConfig.Data["cluster-pool-ipv4-cidr"] = "10.107.0.0/16 10.108.0.0/16 10.109.0.0/16 10.110.0.0/16\n  10.111.0.0/16"
+
+	resolver := discovery.NewResolver(fakeReader(t, objects...), workerNetwork())
+
+	resolved, err := resolver.Resolve(context.Background(), config.Defaults())
+
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		"10.107.0.0/16,10.108.0.0/16,10.109.0.0/16,10.110.0.0/16,10.111.0.0/16",
+		resolved.Routes.PodCIDR,
+	)
+}
+
+func TestResolveRejectsCiliumPoolListWithInvalidEntry(t *testing.T) {
+	t.Parallel()
+
+	objects := discoveryObjects()
+	ciliumConfig, ok := objects[0].(*corev1.ConfigMap)
+	require.True(t, ok)
+
+	ciliumConfig.Data["cluster-pool-ipv4-cidr"] = "10.107.0.0/16 not-a-cidr"
+
+	resolver := discovery.NewResolver(fakeReader(t, objects...), workerNetwork())
+
+	resolved, err := resolver.Resolve(context.Background(), config.Defaults())
+
+	// The invalid Cilium value is rejected as a whole; kubeadm podSubnet still
+	// provides a fallback instead of failing discovery.
+	require.NoError(t, err)
+	assert.Equal(t, "10.0.0.0/10", resolved.Routes.PodCIDR)
 }
 
 func discoveryObjects() []client.Object {

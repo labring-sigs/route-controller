@@ -151,7 +151,7 @@ func testScheme(t *testing.T) *runtime.Scheme {
 
 func testPlanner() *planner.Planner {
 	return planner.New(
-		netip.MustParsePrefix("10.0.0.0/10"),
+		[]netip.Prefix{netip.MustParsePrefix("10.0.0.0/10")},
 		netip.MustParsePrefix("10.192.0.0/12"),
 		netip.MustParsePrefix("192.0.2.0/24"),
 	)

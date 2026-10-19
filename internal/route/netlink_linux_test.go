@@ -22,7 +22,7 @@ func TestNetlinkBackendReconcile(t *testing.T) {
 		"test0",
 		254,
 		99,
-		netip.MustParsePrefix("10.0.0.0/10"),
+		[]netip.Prefix{netip.MustParsePrefix("10.0.0.0/10")},
 		netip.MustParsePrefix("10.192.0.0/12"),
 	)
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestNetlinkBackendRejectsForeignProtocolBeforeMutation(t *testing.T) {
 		"test0",
 		254,
 		99,
-		netip.MustParsePrefix("10.0.0.0/10"),
+		[]netip.Prefix{netip.MustParsePrefix("10.0.0.0/10")},
 		netip.MustParsePrefix("10.192.0.0/12"),
 	)
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestNetlinkBackendRepairsOwnedRouteMetadataDrift(t *testing.T) {
 		"test0",
 		254,
 		99,
-		netip.MustParsePrefix("10.0.0.0/10"),
+		[]netip.Prefix{netip.MustParsePrefix("10.0.0.0/10")},
 		netip.MustParsePrefix("10.192.0.0/12"),
 	)
 	require.NoError(t, err)
@@ -131,7 +131,7 @@ func TestNetlinkBackendPrunesOnlyOwnedManagedRoutes(t *testing.T) {
 		"test0",
 		254,
 		99,
-		netip.MustParsePrefix("10.0.0.0/10"),
+		[]netip.Prefix{netip.MustParsePrefix("10.0.0.0/10")},
 		netip.MustParsePrefix("10.192.0.0/12"),
 	)
 	require.NoError(t, err)

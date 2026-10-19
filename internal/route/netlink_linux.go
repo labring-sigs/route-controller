@@ -49,7 +49,7 @@ type NetlinkBackend struct {
 	linkIndex   int
 	table       int
 	protocol    netlink.RouteProtocol
-	podCIDR     netip.Prefix
+	podCIDRs    []netip.Prefix
 	serviceCIDR netip.Prefix
 }
 
@@ -57,10 +57,10 @@ func NewNetlinkBackend(
 	interfaceName string,
 	table int,
 	protocol int,
-	podCIDR netip.Prefix,
+	podCIDRs []netip.Prefix,
 	serviceCIDR netip.Prefix,
 ) (Backend, error) {
-	return newNetlinkBackend(systemNetlink{}, interfaceName, table, protocol, podCIDR, serviceCIDR)
+	return newNetlinkBackend(systemNetlink{}, interfaceName, table, protocol, podCIDRs, serviceCIDR)
 }
 
 func newNetlinkBackend(
@@ -68,7 +68,7 @@ func newNetlinkBackend(
 	interfaceName string,
 	table int,
 	protocol int,
-	podCIDR netip.Prefix,
+	podCIDRs []netip.Prefix,
 	serviceCIDR netip.Prefix,
 ) (*NetlinkBackend, error) {
 	link, err := api.LinkByName(interfaceName)
@@ -81,7 +81,7 @@ func newNetlinkBackend(
 		linkIndex:   link.Attrs().Index,
 		table:       table,
 		protocol:    netlink.RouteProtocol(protocol),
-		podCIDR:     podCIDR,
+		podCIDRs:    podCIDRs,
 		serviceCIDR: serviceCIDR,
 	}, nil
 }
@@ -211,7 +211,7 @@ func (backend *NetlinkBackend) checkConflicts(
 }
 
 func (backend *NetlinkBackend) managedDestination(destination netip.Prefix) bool {
-	return destination == backend.serviceCIDR || PrefixWithin(destination, backend.podCIDR)
+	return destination == backend.serviceCIDR || PrefixWithinAny(destination, backend.podCIDRs)
 }
 
 func indexByDestination(routes []netlink.Route) map[netip.Prefix][]netlink.Route {

@@ -100,7 +100,11 @@ func addFlags(flags *pflag.FlagSet, values *viper.Viper) error {
 		defaults.Routes.Interface,
 		"host interface used to reach worker next hops (automatically discovered when empty)",
 	)
-	flags.String("pod-cidr", "", "allowed cluster Pod CIDR (automatically discovered when empty)")
+	flags.String(
+		"pod-cidr",
+		"",
+		"allowed cluster Pod CIDRs, comma- or space-separated (automatically discovered when empty)",
+	)
 	flags.String("service-cidr", "", "cluster Service CIDR (automatically discovered when empty)")
 	flags.String(
 		"router-cidr",
