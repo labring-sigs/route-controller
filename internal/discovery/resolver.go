@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/labring-sigs/route-controller/internal/config"
 	corev1 "k8s.io/api/core/v1"
@@ -98,19 +99,19 @@ func (resolver *Resolver) podCIDR(ctx context.Context) (string, error) {
 		configMap,
 	)
 	if ciliumErr == nil {
-		var prefix netip.Prefix
+		var prefixes []netip.Prefix
 
-		prefix, ciliumErr = singleIPv4Prefix(configMap.Data[ciliumPodCIDRKey])
+		prefixes, ciliumErr = ipv4Prefixes(configMap.Data[ciliumPodCIDRKey])
 		if ciliumErr == nil {
-			return prefix.String(), nil
+			return joinPrefixes(prefixes), nil
 		}
 	}
 
 	networking, kubeadmErr := resolver.kubeadmNetworking(ctx)
 
-	var prefix netip.Prefix
+	var prefixes []netip.Prefix
 	if kubeadmErr == nil {
-		prefix, kubeadmErr = singleIPv4Prefix(networking.PodSubnet)
+		prefixes, kubeadmErr = ipv4Prefixes(networking.PodSubnet)
 	}
 
 	if kubeadmErr != nil {
@@ -120,7 +121,7 @@ func (resolver *Resolver) podCIDR(ctx context.Context) (string, error) {
 		)
 	}
 
-	return prefix.String(), nil
+	return joinPrefixes(prefixes), nil
 }
 
 func (resolver *Resolver) serviceCIDR(ctx context.Context) (string, error) {
@@ -280,12 +281,9 @@ func (resolver *Resolver) routerCIDR(
 }
 
 func singleIPv4Prefix(value string) (netip.Prefix, error) {
-	prefixes := make([]netip.Prefix, 0, 1)
-	for part := range strings.SplitSeq(value, ",") {
-		prefix, err := netip.ParsePrefix(strings.TrimSpace(part))
-		if err == nil && prefix.Addr().Is4() {
-			prefixes = append(prefixes, prefix.Masked())
-		}
+	prefixes, err := ipv4Prefixes(value)
+	if err != nil {
+		return netip.Prefix{}, err
 	}
 
 	if len(prefixes) != 1 {
@@ -293,6 +291,36 @@ func singleIPv4Prefix(value string) (netip.Prefix, error) {
 	}
 
 	return prefixes[0], nil
+}
+
+// ipv4Prefixes parses a comma- or whitespace-separated list of IPv4 CIDRs.
+// Cilium stores every cluster-pool CIDR in one ConfigMap value separated by
+// spaces, so any of the parts failing to parse invalidates the whole value.
+func ipv4Prefixes(value string) ([]netip.Prefix, error) {
+	prefixes := make([]netip.Prefix, 0, 1)
+	for _, part := range strings.FieldsFunc(value, func(r rune) bool { return r == ',' || unicode.IsSpace(r) }) {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(part))
+		if err != nil || !prefix.Addr().Is4() {
+			return nil, fmt.Errorf("invalid IPv4 CIDR %q in %q", part, value)
+		}
+
+		prefixes = append(prefixes, prefix.Masked())
+	}
+
+	if len(prefixes) == 0 {
+		return nil, fmt.Errorf("expected at least one IPv4 CIDR in %q", value)
+	}
+
+	return prefixes, nil
+}
+
+func joinPrefixes(prefixes []netip.Prefix) string {
+	values := make([]string, 0, len(prefixes))
+	for _, prefix := range prefixes {
+		values = append(values, prefix.String())
+	}
+
+	return strings.Join(values, ",")
 }
 
 func isControlPlane(node *corev1.Node) bool {

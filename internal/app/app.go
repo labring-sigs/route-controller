@@ -60,7 +60,7 @@ func Run(ctx context.Context, loaded config.Config) error {
 		"interface",
 		cfg.Routes.Interface,
 		"podCIDR",
-		cfg.PodCIDR,
+		cfg.Routes.PodCIDR,
 		"serviceCIDR",
 		cfg.ServiceCIDR,
 		"routerCIDR",
@@ -71,7 +71,7 @@ func Run(ctx context.Context, loaded config.Config) error {
 		cfg.Routes.Interface,
 		cfg.Routes.Table,
 		cfg.Routes.Protocol,
-		cfg.PodCIDR,
+		cfg.PodCIDRs,
 		cfg.ServiceCIDR,
 	)
 	if err != nil {
@@ -98,7 +98,7 @@ func Run(ctx context.Context, loaded config.Config) error {
 
 	reconciler := controller.NewReconciler(
 		manager.GetClient(),
-		planner.New(cfg.PodCIDR, cfg.ServiceCIDR, cfg.RouterCIDR),
+		planner.New(cfg.PodCIDRs, cfg.ServiceCIDR, cfg.RouterCIDR),
 		backend,
 		probe.NewHTTP(cfg.Probe.Timeout, cfg.Probe.Port),
 		planner.NewProbeTracker(cfg.Probe.FailureThreshold, cfg.Probe.SuccessThreshold),

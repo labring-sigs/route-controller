@@ -32,6 +32,55 @@ func TestPlannerUsesCiliumNodePodCIDR(t *testing.T) {
 	assert.Equal(t, netip.MustParsePrefix("10.0.3.0/24"), routes[0].Destination)
 }
 
+func TestPlannerAcceptsPodCIDRFromAnyConfiguredPool(t *testing.T) {
+	t.Parallel()
+
+	routePlanner := planner.New(
+		[]netip.Prefix{
+			netip.MustParsePrefix("10.107.0.0/16"),
+			netip.MustParsePrefix("10.108.0.0/16"),
+		},
+		netip.MustParsePrefix("10.192.0.0/12"),
+		netip.MustParsePrefix("192.0.2.0/24"),
+	)
+	node := readyNode("worker-pool-b", "192.0.2.190")
+
+	workers := routePlanner.Workers(
+		[]corev1.Node{node},
+		[]corev1.Pod{readyCiliumPod("worker-pool-b")},
+		[]planner.CiliumNodeState{{
+			Name: "worker-pool-b", NodeIP: "192.0.2.190", HealthIP: "10.108.5.1",
+			PodCIDRs: []string{"10.108.5.0/24"},
+		}},
+	)
+
+	require.Len(t, workers, 1)
+	assert.Equal(t, planner.WorkerStateReady, workers[0].State)
+	assert.True(t, workers[0].APIReady)
+
+	routes, err := routePlanner.PodRoutes(workers)
+	require.NoError(t, err)
+	require.Len(t, routes, 1)
+	assert.Equal(t, netip.MustParsePrefix("10.108.5.0/24"), routes[0].Destination)
+
+	outside := routePlanner.Workers(
+		[]corev1.Node{node},
+		[]corev1.Pod{readyCiliumPod("worker-pool-b")},
+		[]planner.CiliumNodeState{{
+			Name: "worker-pool-b", NodeIP: "192.0.2.190", HealthIP: "10.109.5.1",
+			PodCIDRs: []string{"10.109.5.0/24"},
+		}},
+	)
+	require.Len(t, outside, 1)
+	assert.False(t, outside[0].APIReady)
+	assert.Equal(t, planner.WorkerStatePodCIDRInvalid, outside[0].State)
+	assert.Contains(
+		t,
+		outside[0].Reason,
+		"PodCIDR 10.109.5.0/24 is outside allowed CIDRs 10.107.0.0/16,10.108.0.0/16",
+	)
+}
+
 func TestPlannerRejectsUnsafeWorkerData(t *testing.T) {
 	t.Parallel()
 
@@ -127,7 +176,7 @@ func TestProbeTrackerThresholds(t *testing.T) {
 
 func testPlanner() *planner.Planner {
 	return planner.New(
-		netip.MustParsePrefix("10.0.0.0/10"),
+		[]netip.Prefix{netip.MustParsePrefix("10.0.0.0/10")},
 		netip.MustParsePrefix("10.192.0.0/12"),
 		netip.MustParsePrefix("192.0.2.0/24"),
 	)

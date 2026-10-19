@@ -95,3 +95,14 @@ func PrefixWithin(child, parent netip.Prefix) bool {
 	return child.IsValid() && parent.IsValid() && child.Addr().BitLen() == parent.Addr().BitLen() &&
 		child.Bits() >= parent.Bits() && parent.Contains(child.Addr())
 }
+
+// PrefixWithinAny reports whether child falls inside any of the parents.
+func PrefixWithinAny(child netip.Prefix, parents []netip.Prefix) bool {
+	for _, parent := range parents {
+		if PrefixWithin(child, parent) {
+			return true
+		}
+	}
+
+	return false
+}
