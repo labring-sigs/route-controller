@@ -161,6 +161,11 @@ func (reconciler *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ct
 		resultLabel = "dry_run"
 
 		reconciler.status.Record(false, errDryRun, desired, actions, workers)
+	case serviceRoute == nil && len(workers) == 0:
+		resultLabel = "idle"
+
+		reconciler.status.Record(true, nil, desired, actions, workers)
+		log.FromContext(ctx).Info("no worker Nodes registered; standing by")
 	case serviceRoute == nil:
 		resultLabel = "degraded"
 

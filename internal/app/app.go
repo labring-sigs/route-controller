@@ -3,8 +3,11 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"time"
 
 	ciliumv2 "github.com/labring-sigs/route-controller/internal/apis/cilium/v2"
 	"github.com/labring-sigs/route-controller/internal/config"
@@ -50,9 +53,20 @@ func Run(ctx context.Context, loaded config.Config) error {
 		return fmt.Errorf("create discovery client: %w", err)
 	}
 
-	cfg, err := discovery.NewResolver(apiReader, discovery.NewSystemNetwork()).Resolve(ctx, loaded)
+	cfg, err := resolveConfig(ctx, apiReader, loaded)
 	if err != nil {
-		return fmt.Errorf("resolve route configuration: %w", err)
+		if !discovery.IsNoWorkers(err) {
+			return fmt.Errorf("resolve route configuration: %w", err)
+		}
+
+		if err := awaitWorkers(ctx, apiReader, loaded); err != nil {
+			return fmt.Errorf("await first worker: %w", err)
+		}
+
+		cfg, err = resolveConfig(ctx, apiReader, loaded)
+		if err != nil {
+			return fmt.Errorf("resolve route configuration: %w", err)
+		}
 	}
 
 	log.FromContext(ctx).Info(
@@ -125,4 +139,98 @@ func Run(ctx context.Context, loaded config.Config) error {
 	}
 
 	return nil
+}
+
+func resolveConfig(
+	ctx context.Context,
+	apiReader client.Client,
+	loaded config.Config,
+) (config.Validated, error) {
+	return discovery.NewResolver(apiReader, discovery.NewSystemNetwork()).Resolve(ctx, loaded)
+}
+
+// awaitWorkers blocks until the first non-control-plane Node registers while
+// serving green health endpoints, so orchestrators that gate joins on this
+// controller's readiness are not deadlocked by an empty cluster. Configuration
+// errors keep failing fast: this path is only entered when discovery failed
+// solely because no worker exists yet.
+func awaitWorkers(ctx context.Context, apiReader client.Client, loaded config.Config) error {
+	logger := log.FromContext(ctx)
+
+	server := startPrelude(ctx, loaded.Observability.HealthProbeBindAddress)
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
+
+	logger.Info("no worker Nodes registered; serving readiness until the first worker joins")
+
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			has, err := discovery.HasWorkerNodes(ctx, apiReader)
+			if err != nil {
+				logger.Error(err, "check for worker Nodes")
+
+				continue
+			}
+
+			if has {
+				logger.Info("first worker Node registered; completing route discovery")
+
+				return nil
+			}
+		}
+	}
+}
+
+// startPrelude serves /healthz, /readyz and a pending /status on the health
+// probe address. It returns a no-op server when the address is empty.
+func startPrelude(ctx context.Context, address string) *http.Server {
+	server := &http.Server{
+		Handler:           preludeHandler(),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	if address == "" {
+		return server
+	}
+
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", address)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "serve readiness prelude", "address", address)
+
+		return server
+	}
+
+	go func() {
+		serveErr := server.Serve(listener)
+		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			log.FromContext(ctx).Error(serveErr, "readiness prelude exited")
+		}
+	}()
+
+	return server
+}
+
+func preludeHandler() http.Handler {
+	mux := http.NewServeMux()
+	ok := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "ok")
+	}
+	mux.HandleFunc("/healthz", ok)
+	mux.HandleFunc("/readyz", ok)
+	mux.HandleFunc("/status", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, `{"ready":true,"pending":"awaiting first worker Node"}`)
+	})
+
+	return mux
 }

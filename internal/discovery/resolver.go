@@ -38,6 +38,31 @@ type clusterNetworking struct {
 	ServiceSubnet string `yaml:"serviceSubnet"`
 }
 
+// ErrNoWorkers reports that no non-control-plane Node is registered yet. The
+// caller may treat it as a retryable condition instead of a fatal misconfiguration.
+var ErrNoWorkers = errors.New("no worker Nodes are registered")
+
+// IsNoWorkers reports whether err was caused solely by an empty worker set.
+func IsNoWorkers(err error) bool {
+	return errors.Is(err, ErrNoWorkers)
+}
+
+// HasWorkerNodes reports whether at least one non-control-plane Node exists.
+func HasWorkerNodes(ctx context.Context, reader client.Reader) (bool, error) {
+	nodes := new(corev1.NodeList)
+	if err := reader.List(ctx, nodes); err != nil {
+		return false, fmt.Errorf("list Nodes: %w", err)
+	}
+
+	for index := range nodes.Items {
+		if !isControlPlane(&nodes.Items[index]) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func NewResolver(reader client.Reader, network Network) *Resolver {
 	return &Resolver{reader: reader, network: network}
 }
@@ -188,7 +213,7 @@ func (resolver *Resolver) workerIPs(ctx context.Context) ([]netip.Addr, error) {
 	}
 
 	if len(addresses) == 0 {
-		return nil, errors.New("discover worker routes: no worker Nodes are registered")
+		return nil, fmt.Errorf("discover worker routes: %w", ErrNoWorkers)
 	}
 
 	slices.SortFunc(addresses, netip.Addr.Compare)
