@@ -144,6 +144,39 @@ func (network *fakeNetwork) ConnectedPrefixes(string) ([]netip.Prefix, error) {
 	return network.prefixes, nil
 }
 
+func TestResolveReportsNoWorkersSentinel(t *testing.T) {
+	t.Parallel()
+
+	objects := discoveryObjects()[:2]
+	resolver := discovery.NewResolver(fakeReader(t, objects...), workerNetwork())
+
+	_, err := resolver.Resolve(context.Background(), config.Defaults())
+
+	require.Error(t, err)
+	assert.True(t, discovery.IsNoWorkers(err), "expected ErrNoWorkers, got %v", err)
+}
+
+func TestHasWorkerNodes(t *testing.T) {
+	t.Parallel()
+
+	controlPlaneOnly := workerNode(
+		"control-plane-1",
+		"192.0.2.2",
+		map[string]string{"node-role.kubernetes.io/control-plane": ""},
+	)
+
+	has, err := discovery.HasWorkerNodes(context.Background(), fakeReader(t, controlPlaneOnly))
+	require.NoError(t, err)
+	assert.False(t, has)
+
+	has, err = discovery.HasWorkerNodes(
+		context.Background(),
+		fakeReader(t, controlPlaneOnly, workerNode("worker-1", "192.0.2.10", nil)),
+	)
+	require.NoError(t, err)
+	assert.True(t, has)
+}
+
 func fakeReader(t *testing.T, objects ...client.Object) client.Reader {
 	t.Helper()
 

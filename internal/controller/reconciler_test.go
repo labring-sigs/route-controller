@@ -54,6 +54,30 @@ func TestReconcileUsesTwoPhaseRouting(t *testing.T) {
 	assert.True(t, status.Snapshot().Ready)
 }
 
+func TestReconcileStandsByWithZeroWorkers(t *testing.T) {
+	apiClient := fake.NewClientBuilder().WithScheme(testScheme(t)).Build()
+	backend := &recordingBackend{}
+	status := controller.NewStatusStore(false)
+	reconciler := controller.NewReconciler(
+		apiClient,
+		testPlanner(),
+		backend,
+		staticProber(true),
+		planner.NewProbeTracker(1, 1),
+		status,
+		controller.ReconcilerConfig{ReconcilePeriod: time.Minute},
+	)
+
+	_, err := reconciler.Reconcile(context.Background(), ctrl.Request{})
+	require.NoError(t, err)
+	require.Len(t, backend.calls, 3)
+	assert.Empty(t, backend.calls[2].desired)
+
+	snapshot := status.Snapshot()
+	assert.True(t, snapshot.Ready)
+	require.NoError(t, status.Ready(nil))
+}
+
 func TestReconcileWithdrawsServiceRouteWithoutHealthyWorker(t *testing.T) {
 	apiClient := fake.NewClientBuilder().
 		WithScheme(testScheme(t)).
