@@ -6,6 +6,7 @@ type WorkerState string
 
 const (
 	WorkerStateReady           WorkerState = "ready"
+	WorkerStateControlPlane    WorkerState = "control-plane"
 	WorkerStateNodeMissing     WorkerState = "node-missing"
 	WorkerStateNodeDeleting    WorkerState = "node-deleting"
 	WorkerStateNodeNotReady    WorkerState = "node-not-ready"

@@ -158,6 +158,10 @@ func (planner *Planner) validateWorker(
 		return WorkerStateNodeDeleting, "Kubernetes Node is deleting"
 	}
 
+	if isControlPlane(node) {
+		return WorkerStateControlPlane, "Kubernetes Node carries a control-plane role"
+	}
+
 	if !nodeReady(node) {
 		return WorkerStateNodeNotReady, "Kubernetes Node is not Ready"
 	}
@@ -217,6 +221,13 @@ func (planner *Planner) validateWorker(
 	worker.HealthIP = healthIP
 
 	return WorkerStateReady, ""
+}
+
+func isControlPlane(node *corev1.Node) bool {
+	_, controlPlane := node.Labels["node-role.kubernetes.io/control-plane"]
+	_, legacyControlPlane := node.Labels["node-role.kubernetes.io/master"]
+
+	return controlPlane || legacyControlPlane
 }
 
 func nodeReady(node *corev1.Node) bool {

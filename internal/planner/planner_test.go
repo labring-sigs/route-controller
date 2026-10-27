@@ -81,6 +81,46 @@ func TestPlannerAcceptsPodCIDRFromAnyConfiguredPool(t *testing.T) {
 	)
 }
 
+func TestPlannerSkipsControlPlaneNodes(t *testing.T) {
+	t.Parallel()
+
+	routePlanner := testPlanner()
+
+	labels := map[string]map[string]string{
+		"current role label": {"node-role.kubernetes.io/control-plane": ""},
+		"legacy role label":  {"node-role.kubernetes.io/master": ""},
+	}
+	for name, roleLabels := range labels {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			node := readyNode("control-plane-1", "192.0.2.189")
+			node.Labels = roleLabels
+
+			workers := routePlanner.Workers(
+				[]corev1.Node{node},
+				[]corev1.Pod{readyCiliumPod("control-plane-1")},
+				[]planner.CiliumNodeState{{
+					Name: "control-plane-1", NodeIP: "192.0.2.189", HealthIP: "10.0.3.1",
+					PodCIDRs: []string{"10.0.3.0/24"},
+				}},
+			)
+
+			require.Len(t, workers, 1)
+			assert.Equal(t, planner.WorkerStateControlPlane, workers[0].State)
+			assert.False(t, workers[0].APIReady)
+
+			routes, err := routePlanner.PodRoutes(workers)
+			require.NoError(t, err)
+			assert.Empty(t, routes)
+
+			serviceRoute, err := routePlanner.ServiceRoute(workers)
+			require.NoError(t, err)
+			assert.Nil(t, serviceRoute)
+		})
+	}
+}
+
 func TestPlannerRejectsUnsafeWorkerData(t *testing.T) {
 	t.Parallel()
 
